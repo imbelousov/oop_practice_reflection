@@ -1,0 +1,36 @@
+﻿@page "/"
+
+@using Paint.Models
+@using Paint.Tools
+
+@inject IEnumerable<ITool> Tools
+
+<ToolsPanel @ref="toolsPanel" />
+<PaintCanvas Width="800" Height="600" OnStartDraw="@OnStartDraw" OnDraw="@OnDraw" OnFinishDraw="@OnFinishDraw" />
+
+@code {
+
+    ToolsPanel toolsPanel;
+
+    async Task OnStartDraw(DrawingContext context)
+    {
+        context.Color = toolsPanel.ColorButton.Color;
+        if (toolsPanel.SelectedTool != null)
+            await toolsPanel.SelectedTool.StartDraw(context);
+    }
+
+    async Task OnDraw(DrawingContext context)
+    {
+        context.Color = toolsPanel.ColorButton.Color;
+        if (toolsPanel.SelectedTool != null)
+            await toolsPanel.SelectedTool.Draw(context);
+    }
+
+    async Task OnFinishDraw(DrawingContext context)
+    {
+        context.Color = toolsPanel.ColorButton.Color;
+        if (toolsPanel.SelectedTool != null)
+            await toolsPanel.SelectedTool.FinishDraw(context);
+    }
+
+}

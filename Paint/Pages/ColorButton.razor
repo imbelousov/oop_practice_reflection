@@ -1,0 +1,26 @@
+﻿@using BlazorColorPicker
+
+<ColorPicker IsOpened="@isOpened" Closed="OnClosed" MyColor="@Color" />
+<button class="btn btn-link" @onclick="OpenPicker">
+    <div style="background-color:@Color" class="button-color"></div>
+</button>
+
+
+@code {
+
+    public string Color { get; set; } = "#FF0000";
+
+    bool isOpened;
+
+    void OpenPicker()
+    {
+        isOpened = true;
+    }
+
+    void OnClosed(string value)
+    {
+        Color = value;
+        isOpened = false;
+    }
+
+}

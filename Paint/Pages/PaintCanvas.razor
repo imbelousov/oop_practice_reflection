@@ -1,0 +1,125 @@
+﻿@using Blazor.Extensions
+@using Newtonsoft.Json
+@using Paint.Models
+
+@inject IJSRuntime JsRuntime
+
+<div class="canvas" @ref="container" @onpointerdown="OnContainerPointerDown" @onpointermove="OnContainerPointerMove" @onpointerup="OnContainerPointerUp" @onpointerout="OnContainerPointerOut">
+    @{
+        var backgroundStyle = $"width: {Width}px; height: {Height}px;";
+        var canvasStyle = $"margin-top: -{Height}px;";
+    }
+    <div style="@backgroundStyle" class="canvas-background"></div>
+    <div style="@canvasStyle">
+        <BECanvas Height="@Height" Width="@Width" @ref="image" />
+    </div>
+    <div style="@canvasStyle">
+        <BECanvas Height="@Height" Width="@Width" @ref="preview" />
+    </div>
+</div>
+
+@code {
+
+    ElementReference container;
+    BECanvas image;
+    BECanvas preview;
+    bool isDrawingStarted;
+    Point startPosition;
+    Point previousPosition;
+
+    [Parameter]
+    public long Width { get; set; }
+
+    [Parameter]
+    public long Height { get; set; }
+
+    [Parameter]
+    public EventCallback<DrawingContext> OnStartDraw { get; set; }
+
+    [Parameter]
+    public EventCallback<DrawingContext> OnDraw { get; set; }
+
+    [Parameter]
+    public EventCallback<DrawingContext> OnFinishDraw { get; set; }
+
+    async void OnContainerPointerDown(PointerEventArgs eventArgs)
+    {
+        var containerPosition = await GetElementPosition(container);
+        startPosition = new Point(eventArgs.ClientX, eventArgs.ClientY) - containerPosition;
+        previousPosition = startPosition;
+        var context = await CreateContext(startPosition);
+
+        await OnStartDraw.InvokeAsync(context);
+        await context.Preview.SaveAsync();
+        await context.Image.SaveAsync();
+
+        isDrawingStarted = true;
+    }
+
+    async void OnContainerPointerMove(PointerEventArgs eventArgs)
+    {
+        if (!isDrawingStarted)
+            return;
+
+        var containerPosition = await GetElementPosition(container);
+        var currentPosition = new Point(eventArgs.ClientX, eventArgs.ClientY) - containerPosition;
+        var context = await CreateContext(currentPosition);
+
+        await context.Preview.ClearRectAsync(0, 0, Width, Height);
+        await OnDraw.InvokeAsync(context);
+        await context.Preview.SaveAsync();
+        await context.Image.SaveAsync();
+
+        previousPosition = currentPosition;
+    }
+
+    async void OnContainerPointerUp(PointerEventArgs eventArgs)
+    {
+        if (!isDrawingStarted)
+            return;
+        isDrawingStarted = false;
+
+        var containerPosition = await GetElementPosition(container);
+        var currentPosition = new Point(eventArgs.ClientX, eventArgs.ClientY) - containerPosition;
+        var context = await CreateContext(currentPosition);
+
+        await OnFinishDraw.InvokeAsync(context);
+        await context.Image.SaveAsync();
+
+        await context.Preview.ClearRectAsync(0, 0, Width, Height);
+        await context.Preview.SaveAsync();
+    }
+
+    async void OnContainerPointerOut(PointerEventArgs eventArgs)
+    {
+        if (!isDrawingStarted)
+            return;
+        isDrawingStarted = false;
+
+        var previewCanvas = await preview.CreateCanvas2DAsync();
+        await previewCanvas.ClearRectAsync(0, 0, Width, Height);
+        await previewCanvas.SaveAsync();
+    }
+
+    async Task<DrawingContext> CreateContext(Point currentPosition)
+    {
+        var previewContext = await preview.CreateCanvas2DAsync();
+        var imageContext = await image.CreateCanvas2DAsync();
+        return new DrawingContext
+        {
+            StartPosition = startPosition,
+            PreviousPosition = previousPosition,
+            CurrentPosition = currentPosition,
+            Preview = previewContext,
+            Image = imageContext
+        };
+    }
+
+    async Task<Point> GetElementPosition(ElementReference element)
+    {
+        var jsResult = await JsRuntime.InvokeAsync<string>("getElementPosition", new object[] {element});
+        var position = (dynamic) JsonConvert.DeserializeObject(jsResult);
+        return new Point((double) position["x"], (double) position["y"]);
+    }
+
+}
